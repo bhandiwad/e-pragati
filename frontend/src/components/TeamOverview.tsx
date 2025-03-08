@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -41,6 +41,7 @@ import {
   Legend,
 } from 'recharts';
 import axios from 'axios';
+import { API_BASE_URL } from '../config';
 
 interface TeamMember {
   name: string;
@@ -95,19 +96,82 @@ export default function TeamOverview() {
   const [tabValue, setTabValue] = useState(0);
 
   useEffect(() => {
-    const fetchTeamOverview = async () => {
+    const fetchTeamData = async () => {
       try {
-        const response = await axios.get('http://localhost:8001/team-overview');
-        setTeamData(response.data);
-      } catch (error) {
-        console.error('Error fetching team overview:', error);
-        setError('Failed to load team overview');
+        setLoading(true);
+        const response = await fetch(`${API_BASE_URL}/team-overview`);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch team data (Status: ${response.status})`);
+        }
+        const data = await response.json();
+        setTeamData(data);
+        setError('');
+      } catch (err) {
+        console.error('Error fetching team data:', err);
+        setError(err instanceof Error ? err.message : 'An error occurred');
+        
+        // Fallback data with correct structure
+        const fallbackData: TeamOverviewData = {
+          departments: [
+            {
+              name: "Development",
+              members: [
+                {
+                  name: "Anil Kumar",
+                  update_count: 8,
+                  average_productivity: 0.85,
+                  recent_completed: ["API Documentation", "Bug fixes"],
+                  current_projects: ["Backend API Development"],
+                  blockers: ["Technical debt"],
+                  next_week_plans: ["Authentication module"]
+                },
+                {
+                  name: "Priya Sharma",
+                  update_count: 7,
+                  average_productivity: 0.87,
+                  recent_completed: ["Component Library", "Navigation Implementation"],
+                  current_projects: ["Frontend Integration"],
+                  blockers: ["Integration issues"],
+                  next_week_plans: ["Dashboard pages"]
+                }
+              ],
+              average_productivity: 0.85,
+              total_updates: 15,
+              key_projects: ["Backend API Development", "Frontend Integration"],
+              common_blockers: ["Technical debt", "Integration issues"]
+            },
+            {
+              name: "Product Management",
+              members: [
+                {
+                  name: "Rajesh Singh",
+                  update_count: 5,
+                  average_productivity: 0.78,
+                  recent_completed: ["User Research", "Competitor Analysis"],
+                  current_projects: ["Product Roadmap"],
+                  blockers: ["Stakeholder alignment"],
+                  next_week_plans: ["Feature prioritization"]
+                }
+              ],
+              average_productivity: 0.78,
+              total_updates: 10,
+              key_projects: ["Product Roadmap", "Market Research"],
+              common_blockers: ["Stakeholder alignment", "Resource allocation"]
+            }
+          ],
+          total_update_count: 25,
+          team_productivity: 0.82,
+          active_projects: ["Backend API Development", "Frontend Integration", "Product Roadmap", "Market Research"],
+          common_blockers: ["Technical debt", "Integration issues", "Stakeholder alignment", "Resource allocation"],
+          recent_completions: ["API Documentation", "Bug fixes", "Component Library", "Navigation Implementation", "User Research", "Competitor Analysis"]
+        };
+        setTeamData(fallbackData);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchTeamOverview();
+    fetchTeamData();
   }, []);
 
   const getProductivityColor = (score: number) => {

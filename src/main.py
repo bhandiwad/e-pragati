@@ -21,7 +21,7 @@ import traceback
 
 from .config import config
 from . import models, schemas
-from .database import get_db, get_db_session, verify_db_connection, init_db
+from .database import get_db, verify_db_connection, init_db
 from .routers import analytics, performance, copilot
 
 # Configure logging
@@ -341,6 +341,62 @@ async def get_team_overview(db: Session = Depends(get_db)):
         logger.error(f"Error in team overview: {str(e)}")
         logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Error fetching team overview: {str(e)}")
+
+@app.get("/team-members")
+async def get_team_members(db: Session = Depends(get_db)):
+    try:
+        team_members = db.query(models.TeamMember).all()
+        
+        # Get latest updates for each team member to extract project and task info
+        result = []
+        for member in team_members:
+            # Get the latest 3 updates for this member
+            latest_updates = db.query(models.Update).filter(
+                models.Update.team_member_id == member.id
+            ).order_by(models.Update.timestamp.desc()).limit(3).all()
+            
+            # Extract projects and tasks from updates
+            projects = []
+            tasks = []
+            
+            for update in latest_updates:
+                # Extract projects
+                if update.project_progress:
+                    try:
+                        project_items = parse_json_array(update.project_progress)
+                        projects.extend(project_items)
+                    except Exception as e:
+                        logger.error(f"Error parsing project progress: {e}")
+                
+                # Extract tasks
+                if update.completed_tasks:
+                    try:
+                        task_items = parse_json_array(update.completed_tasks)
+                        tasks.extend(task_items)
+                    except Exception as e:
+                        logger.error(f"Error parsing completed tasks: {e}")
+            
+            # Limit to top 5 projects and tasks
+            projects = list(set(projects))[:5]
+            tasks = list(set(tasks))[:5]
+            
+            # Create team member object
+            result.append({
+                "id": member.id,
+                "name": member.name,
+                "role": member.role or "Employee",
+                "department": member.department,
+                "projects": projects,
+                "tasks": tasks
+            })
+        
+        return {"members": result}
+    except SQLAlchemyError as e:
+        logger.error(f"Database error in team members: {e}")
+        raise HTTPException(status_code=500, detail="Error fetching team members")
+    except Exception as e:
+        logger.error(f"Unexpected error in team members: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/analyze", response_model=schemas.AnalysisResponse)
 async def analyze_weekly_update(update: schemas.WeeklyUpdateRequest, db: Session = Depends(get_db)):

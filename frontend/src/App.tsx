@@ -17,7 +17,8 @@ import {
   SmartToy as CopilotIcon,
 } from '@mui/icons-material';
 import Dashboard from './components/Dashboard';
-import Updates from './components/Updates';
+import TeamOverview from './components/TeamOverview';
+import SubmitUpdate from './components/SubmitUpdate';
 import Team from './components/Team';
 import Analytics from './components/Analytics';
 import Performance from './components/Performance';
@@ -62,6 +63,11 @@ function App() {
 
   const handleChange = (event: React.SyntheticEvent, newValue: number) => {
     setValue(newValue);
+  };
+
+  const handleSubmitSuccess = () => {
+    // Refresh data or show notification if needed
+    console.log('Update submitted successfully');
   };
 
   return (
@@ -112,7 +118,7 @@ function App() {
           <Dashboard />
         </TabPanel>
         <TabPanel value={value} index={1}>
-          <Updates />
+          <SubmitUpdate onSubmitSuccess={handleSubmitSuccess} />
         </TabPanel>
         <TabPanel value={value} index={2}>
           <Team />
@@ -130,5 +136,5 @@ function App() {
     </ThemeProvider>
   );
 }
-
 export default App;
+

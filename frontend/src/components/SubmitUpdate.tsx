@@ -15,6 +15,7 @@ import {
   SelectChangeEvent,
 } from '@mui/material';
 import { Send as SendIcon } from '@mui/icons-material';
+import { API_BASE_URL } from '../config';
 
 interface UpdateFormData {
   name: string;
@@ -69,7 +70,7 @@ export default function SubmitUpdate({ onSubmitSuccess }: SubmitUpdateProps) {
     setSuccess(false);
 
     try {
-      const response = await fetch('/api/updates', {
+      const response = await fetch(`${API_BASE_URL}/analyze`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -78,7 +79,7 @@ export default function SubmitUpdate({ onSubmitSuccess }: SubmitUpdateProps) {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to submit update');
+        throw new Error(`Failed to submit update (Status: ${response.status})`);
       }
 
       setSuccess(true);
@@ -92,6 +93,7 @@ export default function SubmitUpdate({ onSubmitSuccess }: SubmitUpdateProps) {
       });
       onSubmitSuccess();
     } catch (err) {
+      console.error('Error submitting update:', err);
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setLoading(false);

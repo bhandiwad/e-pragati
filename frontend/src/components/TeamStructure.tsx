@@ -1,419 +1,99 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
-  Paper,
+  Grid,
+  Card,
+  CardContent,
+  Avatar,
+  Chip,
+  List,
+  ListItem,
+  ListItemText,
   CircularProgress,
+  Divider,
 } from '@mui/material';
-import { TreeView } from '@mui/x-tree-view/TreeView';
-import { TreeItem } from '@mui/x-tree-view/TreeItem';
-import {
-  ExpandMore as ExpandMoreIcon,
-  ChevronRight as ChevronRightIcon,
-  Person as PersonIcon,
-  Group as GroupIcon,
-} from '@mui/icons-material';
+import { API_BASE_URL } from '../config';
 
 interface TeamMember {
-  id: string;
+  id: number;
   name: string;
   role: string;
   department: string;
-  reports_to?: string;
+  projects: string[];
+  tasks: string[];
 }
 
-interface DepartmentNode {
-  id: string;
-  name: string;
-  children: (DepartmentNode | TeamMember)[];
-}
-
-export default function TeamStructure() {
+const TeamStructure: React.FC = () => {
+  const [members, setMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState<string[]>([]);
-  const [organizationData, setOrganizationData] = useState<DepartmentNode | null>(null);
 
   useEffect(() => {
-    fetchOrganizationData();
-  }, []);
-
-  const fetchOrganizationData = async () => {
-    try {
-      setLoading(true);
-      // TODO: Replace with actual API call
-      // Simulated data for now
-      const data: DepartmentNode = {
-        id: 'org',
-        name: 'Organization',
-        children: [
+    const fetchTeamMembers = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(`${API_BASE_URL}/team-members`);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch team members (Status: ${response.status})`);
+        }
+        const data = await response.json();
+        setMembers(data.members);
+        setError(null);
+      } catch (err) {
+        console.error('Error fetching team members:', err);
+        setError(err instanceof Error ? err.message : 'An error occurred');
+        
+        // Fallback data
+        setMembers([
           {
-            id: 'dev',
-            name: 'Development',
-            children: [
-              {
-                id: 'dev-1',
-                name: 'John Smith',
-                role: 'Engineering Director',
-                department: 'Development'
-              },
-              {
-                id: 'dev-2',
-                name: 'Sarah Johnson',
-                role: 'Lead Developer',
-                department: 'Development'
-              },
-              {
-                id: 'dev-3',
-                name: 'Michael Chen',
-                role: 'Senior Developer',
-                department: 'Development'
-              },
-              {
-                id: 'dev-4',
-                name: 'Emily Davis',
-                role: 'Full Stack Developer',
-                department: 'Development'
-              },
-              {
-                id: 'dev-5',
-                name: 'David Wilson',
-                role: 'Backend Developer',
-                department: 'Development'
-              },
-              {
-                id: 'dev-6',
-                name: 'Lisa Anderson',
-                role: 'Frontend Developer',
-                department: 'Development'
-              },
-              {
-                id: 'dev-7',
-                name: 'James Taylor',
-                role: 'DevOps Engineer',
-                department: 'Development'
-              },
-              {
-                id: 'dev-8',
-                name: 'Anna Martinez',
-                role: 'QA Engineer',
-                department: 'Development'
-              }
-            ]
+            id: 1,
+            name: 'Anil Kumar',
+            role: 'Senior Developer',
+            department: 'Development',
+            projects: ['Backend API Development', 'Database Migration'],
+            tasks: ['API Documentation', 'Bug Fixes', 'Performance Optimization']
           },
           {
-            id: 'product',
-            name: 'Product',
-            children: [
-              {
-                id: 'prod-1',
-                name: 'Mike Wilson',
-                role: 'Product Director',
-                department: 'Product'
-              },
-              {
-                id: 'prod-2',
-                name: 'Rachel Brown',
-                role: 'Senior Product Manager',
-                department: 'Product'
-              },
-              {
-                id: 'prod-3',
-                name: 'Tom Harris',
-                role: 'Product Manager',
-                department: 'Product'
-              },
-              {
-                id: 'prod-4',
-                name: 'Sophie Lee',
-                role: 'Product Analyst',
-                department: 'Product'
-              },
-              {
-                id: 'prod-5',
-                name: 'Alex Turner',
-                role: 'UX Researcher',
-                department: 'Product'
-              }
-            ]
+            id: 2,
+            name: 'Priya Sharma',
+            role: 'Frontend Developer',
+            department: 'Development',
+            projects: ['Frontend Integration', 'UI Redesign'],
+            tasks: ['Component Library', 'Navigation Implementation', 'Responsive Design']
           },
           {
-            id: 'design',
-            name: 'Design',
-            children: [
-              {
-                id: 'des-1',
-                name: 'Emily Chen',
-                role: 'Design Director',
-                department: 'Design'
-              },
-              {
-                id: 'des-2',
-                name: 'Daniel Kim',
-                role: 'Senior UI Designer',
-                department: 'Design'
-              },
-              {
-                id: 'des-3',
-                name: 'Jessica Wong',
-                role: 'UX Designer',
-                department: 'Design'
-              },
-              {
-                id: 'des-4',
-                name: 'Ryan Park',
-                role: 'Visual Designer',
-                department: 'Design'
-              }
-            ]
+            id: 3,
+            name: 'Rajesh Singh',
+            role: 'Product Manager',
+            department: 'Product Management',
+            projects: ['Product Roadmap', 'Market Research'],
+            tasks: ['User Research', 'Feature Prioritization', 'Competitive Analysis']
           },
           {
-            id: 'marketing',
-            name: 'Marketing',
-            children: [
-              {
-                id: 'mkt-1',
-                name: 'Laura Thompson',
-                role: 'Marketing Director',
-                department: 'Marketing'
-              },
-              {
-                id: 'mkt-2',
-                name: 'Chris Evans',
-                role: 'Content Manager',
-                department: 'Marketing'
-              },
-              {
-                id: 'mkt-3',
-                name: 'Maria Garcia',
-                role: 'Social Media Manager',
-                department: 'Marketing'
-              },
-              {
-                id: 'mkt-4',
-                name: 'Kevin White',
-                role: 'SEO Specialist',
-                department: 'Marketing'
-              },
-              {
-                id: 'mkt-5',
-                name: 'Nina Patel',
-                role: 'Marketing Analyst',
-                department: 'Marketing'
-              }
-            ]
+            id: 4,
+            name: 'Deepa Patel',
+            role: 'UX Designer',
+            department: 'Design',
+            projects: ['Design System', 'User Testing'],
+            tasks: ['Wireframes', 'Prototypes', 'User Flows']
           },
           {
-            id: 'sales',
-            name: 'Sales',
-            children: [
-              {
-                id: 'sales-1',
-                name: 'Robert Miller',
-                role: 'Sales Director',
-                department: 'Sales'
-              },
-              {
-                id: 'sales-2',
-                name: 'Amanda Clark',
-                role: 'Senior Account Executive',
-                department: 'Sales'
-              },
-              {
-                id: 'sales-3',
-                name: 'Steven Wright',
-                role: 'Account Manager',
-                department: 'Sales'
-              },
-              {
-                id: 'sales-4',
-                name: 'Linda Rodriguez',
-                role: 'Sales Representative',
-                department: 'Sales'
-              },
-              {
-                id: 'sales-5',
-                name: 'Paul Green',
-                role: 'Sales Operations',
-                department: 'Sales'
-              },
-              {
-                id: 'sales-6',
-                name: 'Sarah Foster',
-                role: 'Business Development',
-                department: 'Sales'
-              }
-            ]
-          },
-          {
-            id: 'hr',
-            name: 'Human Resources',
-            children: [
-              {
-                id: 'hr-1',
-                name: 'Patricia Adams',
-                role: 'HR Director',
-                department: 'HR'
-              },
-              {
-                id: 'hr-2',
-                name: 'Mark Johnson',
-                role: 'HR Manager',
-                department: 'HR'
-              },
-              {
-                id: 'hr-3',
-                name: 'Helen Brooks',
-                role: 'Recruiter',
-                department: 'HR'
-              },
-              {
-                id: 'hr-4',
-                name: 'George Taylor',
-                role: 'HR Specialist',
-                department: 'HR'
-              }
-            ]
-          },
-          {
-            id: 'finance',
-            name: 'Finance',
-            children: [
-              {
-                id: 'fin-1',
-                name: 'William Turner',
-                role: 'Finance Director',
-                department: 'Finance'
-              },
-              {
-                id: 'fin-2',
-                name: 'Susan Lee',
-                role: 'Financial Controller',
-                department: 'Finance'
-              },
-              {
-                id: 'fin-3',
-                name: 'David Chen',
-                role: 'Financial Analyst',
-                department: 'Finance'
-              },
-              {
-                id: 'fin-4',
-                name: 'Karen White',
-                role: 'Accountant',
-                department: 'Finance'
-              }
-            ]
-          },
-          {
-            id: 'ops',
-            name: 'Operations',
-            children: [
-              {
-                id: 'ops-1',
-                name: 'Richard Baker',
-                role: 'Operations Director',
-                department: 'Operations'
-              },
-              {
-                id: 'ops-2',
-                name: 'Jennifer Hill',
-                role: 'Operations Manager',
-                department: 'Operations'
-              },
-              {
-                id: 'ops-3',
-                name: 'Thomas Young',
-                role: 'Project Manager',
-                department: 'Operations'
-              },
-              {
-                id: 'ops-4',
-                name: 'Michelle Lee',
-                role: 'Operations Analyst',
-                department: 'Operations'
-              },
-              {
-                id: 'ops-5',
-                name: 'Brian Wilson',
-                role: 'Business Analyst',
-                department: 'Operations'
-              }
-            ]
-          },
-          {
-            id: 'legal',
-            name: 'Legal',
-            children: [
-              {
-                id: 'legal-1',
-                name: 'Catherine Moore',
-                role: 'Legal Director',
-                department: 'Legal'
-              },
-              {
-                id: 'legal-2',
-                name: 'Andrew Ross',
-                role: 'Senior Counsel',
-                department: 'Legal'
-              },
-              {
-                id: 'legal-3',
-                name: 'Elizabeth Ward',
-                role: 'Legal Counsel',
-                department: 'Legal'
-              },
-              {
-                id: 'legal-4',
-                name: 'Peter Collins',
-                role: 'Compliance Officer',
-                department: 'Legal'
-              }
-            ]
+            id: 5,
+            name: 'Vikram Reddy',
+            role: 'DevOps Engineer',
+            department: 'Platform',
+            projects: ['CI/CD Pipeline', 'Cloud Migration'],
+            tasks: ['Infrastructure Setup', 'Automated Deployments', 'Monitoring']
           }
-        ]
-      };
-      setOrganizationData(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch organization data');
-    } finally {
-      setLoading(false);
-    }
-  };
+        ]);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const handleToggle = (event: React.SyntheticEvent, nodeIds: string[]) => {
-    setExpanded(nodeIds);
-  };
-
-  const renderTree = (node: DepartmentNode | TeamMember) => {
-    const isTeamMember = 'role' in node;
-    const label = isTeamMember ? (
-      <Box sx={{ display: 'flex', alignItems: 'center', p: 0.5 }}>
-        <PersonIcon sx={{ mr: 1, fontSize: '1.2rem' }} />
-        <Box>
-          <Typography variant="body1">{node.name}</Typography>
-          <Typography variant="caption" color="text.secondary">
-            {node.role}
-          </Typography>
-        </Box>
-      </Box>
-    ) : (
-      <Box sx={{ display: 'flex', alignItems: 'center', p: 0.5 }}>
-        <GroupIcon sx={{ mr: 1, fontSize: '1.2rem' }} />
-        <Typography variant="body1">{node.name}</Typography>
-      </Box>
-    );
-
-    return (
-      <TreeItem
-        key={node.id}
-        nodeId={node.id}
-        label={label}
-      >
-        {!isTeamMember && node.children.map((child) => renderTree(child))}
-      </TreeItem>
-    );
-  };
+    fetchTeamMembers();
+  }, []);
 
   if (loading) {
     return (
@@ -431,35 +111,79 @@ export default function TeamStructure() {
     );
   }
 
-  if (!organizationData) {
-    return null;
-  }
-
   return (
-    <Paper sx={{ p: 3 }}>
-      <Typography variant="h6" gutterBottom>
-        Organization Structure
+    <Box sx={{ p: 3 }}>
+      <Typography variant="h5" gutterBottom>
+        Team Structure
       </Typography>
-      <Box sx={{ maxWidth: '100%', overflow: 'auto' }}>
-        <TreeView
-          aria-label="organization structure"
-          defaultExpandIcon={<ChevronRightIcon />}
-          defaultCollapseIcon={<ExpandMoreIcon />}
-          expanded={expanded}
-          onNodeToggle={handleToggle}
-          sx={{ 
-            flexGrow: 1,
-            maxWidth: 800,
-            '& .MuiTreeItem-root': {
-              '& .MuiTreeItem-content': {
-                py: 0.5
-              }
-            }
-          }}
-        >
-          {renderTree(organizationData)}
-        </TreeView>
-      </Box>
-    </Paper>
+      
+      <Grid container spacing={3}>
+        {members.map((member) => (
+          <Grid item key={member.id} xs={12} md={6} lg={4}>
+            <Card variant="outlined">
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                  <Avatar sx={{ bgcolor: stringToColor(member.name), mr: 2 }}>
+                    {getInitials(member.name)}
+                  </Avatar>
+                  <Box>
+                    <Typography variant="h6">{member.name}</Typography>
+                    <Typography variant="body2" color="textSecondary">
+                      {member.role} • {member.department}
+                    </Typography>
+                  </Box>
+                </Box>
+                
+                <Divider sx={{ mb: 2 }} />
+                
+                <Typography variant="subtitle2" gutterBottom>
+                  Current Projects
+                </Typography>
+                <Box sx={{ mb: 2, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                  {member.projects.map((project, index) => (
+                    <Chip key={index} label={project} size="small" />
+                  ))}
+                </Box>
+                
+                <Typography variant="subtitle2" gutterBottom>
+                  Recent Tasks
+                </Typography>
+                <List dense>
+                  {member.tasks.map((task, index) => (
+                    <ListItem key={index} disablePadding>
+                      <ListItemText primary={task} />
+                    </ListItem>
+                  ))}
+                </List>
+              </CardContent>
+            </Card>
+          </Grid>
+        ))}
+      </Grid>
+    </Box>
   );
-} 
+};
+
+// Helper functions
+function stringToColor(string: string): string {
+  let hash = 0;
+  for (let i = 0; i < string.length; i++) {
+    hash = string.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  let color = '#';
+  for (let i = 0; i < 3; i++) {
+    const value = (hash >> (i * 8)) & 0xff;
+    color += `00${value.toString(16)}`.slice(-2);
+  }
+  return color;
+}
+
+function getInitials(name: string): string {
+  return name
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .toUpperCase();
+}
+
+export default TeamStructure; 

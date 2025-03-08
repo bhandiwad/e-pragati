@@ -1,7 +1,7 @@
 from sqlalchemy import create_engine, text
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-from contextlib import contextmanager
+from sqlalchemy.orm import sessionmaker, Session
+from typing import Generator
 import logging
 
 from .config import config
@@ -21,20 +21,12 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 # Create base class for declarative models
 Base = declarative_base()
 
-def get_db_session():
-    """Get a database session directly."""
-    return SessionLocal()
-
-@contextmanager
-def get_db():
+# Update get_db to use a generator pattern that works with FastAPI
+def get_db() -> Generator[Session, None, None]:
     """Provide a transactional scope around a series of operations."""
     db = SessionLocal()
     try:
         yield db
-        db.commit()  # Auto-commit if no exception occurred
-    except Exception:
-        db.rollback()  # Rollback on exception
-        raise
     finally:
         db.close()
 
