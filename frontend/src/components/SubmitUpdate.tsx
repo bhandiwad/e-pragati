@@ -17,65 +17,65 @@ import {
 import { Send as SendIcon } from '@mui/icons-material';
 import { API_BASE_URL } from '../config';
 
-interface UpdateFormData {
-  name: string;
-  department: string;
-  project_progress: string;
-  completed_tasks: string;
-  blockers: string;
-  next_week_plans: string;
-}
-
 interface SubmitUpdateProps {
   onSubmitSuccess: () => void;
 }
 
 export default function SubmitUpdate({ onSubmitSuccess }: SubmitUpdateProps) {
-  const [formData, setFormData] = useState<UpdateFormData>({
-    name: '',
-    department: '',
-    project_progress: '',
-    completed_tasks: '',
-    blockers: '',
-    next_week_plans: '',
-  });
-
+  const [name, setName] = useState('');
+  const [role, setRole] = useState('');
+  const [updateText, setUpdateText] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
   const departments = [
     'Development',
-    'Product',
-    'Design',
-    'Marketing',
-    'Sales',
+    'Product Management',
+    'Solutions',
+    'Service Delivery',
+    'Service Assurance',
+    'IT',
     'HR',
+    'Legal',
+    'Platform Engineering',
   ];
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | SelectChangeEvent
-  ) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setName(e.target.value);
+  };
+
+  const handleRoleChange = (e: SelectChangeEvent) => {
+    setRole(e.target.value);
+  };
+
+  const handleUpdateTextChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setUpdateText(e.target.value);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!name || !role || !updateText) {
+      setError('Please fill in all required fields');
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setSuccess(false);
 
     try {
+      const teamMember = `${name} - ${role}`;
+      
       const response = await fetch(`${API_BASE_URL}/analyze`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          team_member: teamMember,
+          text: updateText
+        }),
       });
 
       if (!response.ok) {
@@ -83,14 +83,9 @@ export default function SubmitUpdate({ onSubmitSuccess }: SubmitUpdateProps) {
       }
 
       setSuccess(true);
-      setFormData({
-        name: '',
-        department: '',
-        project_progress: '',
-        completed_tasks: '',
-        blockers: '',
-        next_week_plans: '',
-      });
+      setName('');
+      setRole('');
+      setUpdateText('');
       onSubmitSuccess();
     } catch (err) {
       console.error('Error submitting update:', err);
@@ -112,19 +107,17 @@ export default function SubmitUpdate({ onSubmitSuccess }: SubmitUpdateProps) {
               required
               fullWidth
               label="Name"
-              name="name"
-              value={formData.name}
-              onChange={handleChange}
+              value={name}
+              onChange={handleNameChange}
             />
           </Grid>
           <Grid item xs={12} sm={6}>
             <FormControl fullWidth required>
               <InputLabel>Department</InputLabel>
               <Select
-                name="department"
-                value={formData.department}
+                value={role}
                 label="Department"
-                onChange={handleChange}
+                onChange={handleRoleChange}
               >
                 {departments.map((dept) => (
                   <MenuItem key={dept} value={dept}>
@@ -139,50 +132,11 @@ export default function SubmitUpdate({ onSubmitSuccess }: SubmitUpdateProps) {
               required
               fullWidth
               multiline
-              rows={3}
-              label="Project Progress"
-              name="project_progress"
-              value={formData.project_progress}
-              onChange={handleChange}
-              helperText="List your key achievements and progress this week"
-            />
-          </Grid>
-          <Grid item xs={12}>
-            <TextField
-              required
-              fullWidth
-              multiline
-              rows={3}
-              label="Completed Tasks"
-              name="completed_tasks"
-              value={formData.completed_tasks}
-              onChange={handleChange}
-              helperText="List the tasks you completed this week"
-            />
-          </Grid>
-          <Grid item xs={12}>
-            <TextField
-              fullWidth
-              multiline
-              rows={2}
-              label="Blockers"
-              name="blockers"
-              value={formData.blockers}
-              onChange={handleChange}
-              helperText="List any blockers or challenges you're facing"
-            />
-          </Grid>
-          <Grid item xs={12}>
-            <TextField
-              required
-              fullWidth
-              multiline
-              rows={3}
-              label="Next Week's Plans"
-              name="next_week_plans"
-              value={formData.next_week_plans}
-              onChange={handleChange}
-              helperText="Outline your plans and goals for next week"
+              rows={10}
+              label="Weekly Update"
+              value={updateText}
+              onChange={handleUpdateTextChange}
+              helperText="Provide a detailed update of your week including completed tasks, project progress, any blockers, and your plans for next week. The system will automatically analyze your update to extract the relevant information."
             />
           </Grid>
           <Grid item xs={12}>
@@ -193,7 +147,7 @@ export default function SubmitUpdate({ onSubmitSuccess }: SubmitUpdateProps) {
             )}
             {success && (
               <Alert severity="success" sx={{ mb: 2 }}>
-                Update submitted successfully!
+                Update submitted successfully! The system has analyzed your update and extracted the relevant information.
               </Alert>
             )}
             <Button

@@ -26,17 +26,28 @@ const API_BASE_URL = 'http://localhost:8001';
 
 interface TeamOverviewData {
   departments: {
-    [key: string]: {
+    name: string;
+    members: Array<{
       name: string;
-      total_updates: number;
-      avg_productivity: number;
-      key_projects: string[];
-      common_blockers: string[];
-    };
-  };
-  total_members: number;
-  recent_updates: number;
+      role: string;
+      department: string;
+      update_count: number;
+      average_productivity: number;
+      recent_completed: string[];
+      current_projects: string[];
+      next_week_plans: string[];
+      blockers: string[];
+    }>;
+    average_productivity: number;
+    total_updates: number;
+    key_projects: string[];
+    common_blockers: string[];
+  }[];
+  total_update_count: number;
+  team_productivity: number;
   active_projects: string[];
+  common_blockers: string[];
+  recent_completions: string[];
 }
 
 interface HistoryItem {
@@ -159,7 +170,9 @@ const Dashboard: React.FC = () => {
                 <People color="primary" sx={{ mr: 1 }} />
                 <Typography variant="h6">Team Members</Typography>
               </Box>
-              <Typography variant="h4">{teamData.total_members}</Typography>
+              <Typography variant="h4">
+                {teamData.departments.reduce((total, dept) => total + dept.members.length, 0)}
+              </Typography>
             </CardContent>
           </Card>
         </Grid>
@@ -171,7 +184,12 @@ const Dashboard: React.FC = () => {
                 <Assignment color="primary" sx={{ mr: 1 }} />
                 <Typography variant="h6">Completed Tasks</Typography>
               </Box>
-              <Typography variant="h4">{completedTasksCount}</Typography>
+              <Typography variant="h4">
+                {teamData.recent_completions?.length || 
+                 teamData.departments.reduce((sum, dept) => 
+                   sum + dept.members.reduce((memberSum, member) => 
+                     memberSum + (member.recent_completed?.length || 0), 0), 0)}
+              </Typography>
             </CardContent>
           </Card>
         </Grid>
@@ -183,7 +201,7 @@ const Dashboard: React.FC = () => {
                 <TrendingUp color="primary" sx={{ mr: 1 }} />
                 <Typography variant="h6">Active Projects</Typography>
               </Box>
-              <Typography variant="h4">{activeProjects.size}</Typography>
+              <Typography variant="h4">{teamData.active_projects?.length || 0}</Typography>
             </CardContent>
           </Card>
         </Grid>
@@ -195,7 +213,7 @@ const Dashboard: React.FC = () => {
                 <ErrorIcon color="error" sx={{ mr: 1 }} />
                 <Typography variant="h6">Current Blockers</Typography>
               </Box>
-              <Typography variant="h4">{blockers.length}</Typography>
+              <Typography variant="h4">{teamData.common_blockers?.length || 0}</Typography>
             </CardContent>
           </Card>
         </Grid>
@@ -249,14 +267,14 @@ const Dashboard: React.FC = () => {
               Department Overview
             </Typography>
             <List>
-              {Object.entries(teamData.departments).map(([key, dept]) => (
-                <ListItem key={key}>
+              {teamData.departments.map((dept) => (
+                <ListItem key={dept.name}>
                   <ListItemText
                     primary={dept.name}
                     secondary={
                       <React.Fragment>
                         <Typography variant="body2">
-                          Updates: {dept.total_updates} | Productivity: {(dept.avg_productivity * 100).toFixed(0)}%
+                          Updates: {dept.total_updates} | Productivity: {(dept.average_productivity * 100).toFixed(0)}%
                         </Typography>
                         {dept.key_projects.length > 0 && (
                           <Typography variant="body2" sx={{ mt: 0.5 }}>

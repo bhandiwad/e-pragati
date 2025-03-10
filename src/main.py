@@ -1,10 +1,10 @@
 from dotenv import load_dotenv
 import os
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Dict, Any
 from statistics import mean
-from collections import defaultdict
+from collections import defaultdict, Counter
 from pathlib import Path
 import socket
 import logging
@@ -18,6 +18,11 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 import traceback
+import re
+import nltk
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
+from nltk.stem import WordNetLemmatizer
 
 from .config import config
 from . import models, schemas
@@ -164,6 +169,11 @@ async def startup_event():
         logger.info(f"API host: {config.api.host}")
         logger.info(f"API port: {config.api.port}")
         logger.info(f"Feature flags: {config.features.__dict__}")
+        
+        # Download NLTK resources at application startup
+        nltk.download('punkt', quiet=True)
+        nltk.download('stopwords', quiet=True)
+        nltk.download('wordnet', quiet=True)
         
     except Exception as e:
         logger.error(f"Failed to start application: {e}")
@@ -535,3 +545,140 @@ async def analyze_weekly_update(update: schemas.WeeklyUpdateRequest, db: Session
         logger.error(f"Unexpected error in analyze endpoint: {str(e)}")
         logger.exception("Full traceback:")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/keyword-repetition")
+async def get_keyword_repetition(db: Session = Depends(get_db), days: int = 30):
+    """
+    Analyze keyword repetition in team member updates over a specified time period.
+    Returns data for a heatmap visualization showing which team members repeat the same terms.
+    """
+    try:
+        logger.info(f"Getting keyword repetition analysis for past {days} days")
+        
+        # Calculate the date range
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=days)
+        
+        # Get all updates within the date range
+        updates = db.query(models.Update).filter(
+            models.Update.timestamp >= start_date
+        ).join(models.TeamMember).order_by(
+            models.TeamMember.name, models.Update.timestamp
+        ).all()
+        
+        # Group updates by team member
+        member_updates = {}
+        for update in updates:
+            if update.team_member.name not in member_updates:
+                member_updates[update.team_member.name] = []
+            
+            # Add update text and timestamp
+            update_text = update.update_text
+            
+            # Combine all text fields from the analysis
+            for field_name, field_value in [
+                ('completed_tasks', update.completed_tasks),
+                ('project_progress', update.project_progress),
+                ('goals_status', update.goals_status),
+                ('blockers', update.blockers),
+                ('next_week_plans', update.next_week_plans)
+            ]:
+                if field_value:
+                    try:
+                        field_data = json.loads(field_value)
+                        if isinstance(field_data, list):
+                            update_text += " " + " ".join(field_data)
+                    except (json.JSONDecodeError, TypeError):
+                        logger.warning(f"Could not decode {field_name} data")
+            
+            member_updates[update.team_member.name].append({
+                "timestamp": update.timestamp,
+                "text": update_text
+            })
+        
+        # Initialize result
+        results = []
+        
+        # Check if we have NLTK resources available
+        nltk_available = True
+        try:
+            from nltk.corpus import stopwords
+            from nltk.tokenize import word_tokenize
+            from nltk.stem import WordNetLemmatizer
+            stop_words = set(stopwords.words('english'))
+            lemmatizer = WordNetLemmatizer()
+        except (ImportError, LookupError):
+            nltk_available = False
+            logger.warning("NLTK resources not available. Using simplified analysis.")
+        
+        # Process updates for each team member
+        for member, updates in member_updates.items():
+            if len(updates) < 2:  # Skip if only one update
+                continue
+                
+            # Sort updates by timestamp
+            updates.sort(key=lambda x: x["timestamp"])
+            
+            # Analyze consecutive updates for repeated keywords
+            repeated_keywords = {}
+            prev_keywords = set()
+            
+            for i, update in enumerate(updates):
+                # Preprocess text
+                text = update["text"].lower()
+                # Remove special characters and numbers
+                text = re.sub(r'[^a-zA-Z\s]', '', text)
+                
+                if nltk_available:
+                    # Full NLP processing with NLTK
+                    # Tokenize
+                    tokens = word_tokenize(text)
+                    
+                    # Remove stop words and lemmatize
+                    keywords = [lemmatizer.lemmatize(word) for word in tokens if word not in stop_words and len(word) > 3]
+                else:
+                    # Simple fallback tokenization and filtering
+                    tokens = text.split()
+                    # A simple list of common English stop words
+                    simple_stop_words = {'the', 'a', 'an', 'and', 'or', 'but', 'is', 'are', 'was', 'were', 
+                                        'be', 'been', 'being', 'to', 'of', 'for', 'with', 'that', 'this', 
+                                        'these', 'those', 'it', 'its', 'in', 'on', 'at', 'by', 'from', 
+                                        'as', 'have', 'has', 'had', 'not', 'no', 'nor', 'if', 'else', 'then',
+                                        'when', 'up', 'down', 'out', 'over', 'under', 'again'}
+                    keywords = [word for word in tokens if word not in simple_stop_words and len(word) > 3]
+                
+                # Count keywords
+                keyword_counts = Counter(keywords)
+                
+                # Find significant keywords (mentioned multiple times)
+                significant_keywords = {word for word, count in keyword_counts.items() if count >= 2}
+                
+                # Find repeated keywords from previous update
+                if i > 0 and prev_keywords:
+                    repeated = significant_keywords.intersection(prev_keywords)
+                    
+                    for keyword in repeated:
+                        if keyword not in repeated_keywords:
+                            repeated_keywords[keyword] = 0
+                        repeated_keywords[keyword] += 1
+                
+                # Store current keywords for next comparison
+                prev_keywords = significant_keywords
+            
+            # Add to results if there are repeated keywords
+            if repeated_keywords:
+                results.append({
+                    "team_member": member,
+                    "repeated_keywords": [{"keyword": k, "count": v} for k, v in repeated_keywords.items()],
+                    "total_updates": len(updates)
+                })
+        
+        # Sort results by total number of repeated keywords
+        results.sort(key=lambda x: sum(item["count"] for item in x["repeated_keywords"]), reverse=True)
+        
+        return results
+        
+    except Exception as e:
+        logger.error(f"Error in keyword repetition analysis: {str(e)}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Failed to analyze keyword repetition: {str(e)}")
