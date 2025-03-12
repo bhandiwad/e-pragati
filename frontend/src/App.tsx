@@ -31,6 +31,7 @@ import {
   BarChart as BarChartIcon,
   Loop as LoopIcon,
   Create as CreateIcon,
+  CompareArrows as SemanticIcon,
 } from '@mui/icons-material';
 import { Routes, Route, Link } from 'react-router-dom';
 
@@ -46,6 +47,7 @@ import TeamStructure from './components/TeamStructure';
 import AdvancedAnalytics from './components/AdvancedAnalytics';
 import KeywordRepetition from './components/KeywordRepetition';
 import History from './components/History';
+import SemanticSimilarity from './components/SemanticSimilarity';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -103,6 +105,7 @@ function App() {
     { text: 'Analytics', icon: <AnalyticsIcon />, path: '/analytics' },
     { text: 'Advanced Analytics', icon: <BarChartIcon />, path: '/advanced-analytics' },
     { text: 'Keyword Repetition', icon: <LoopIcon />, path: '/keyword-repetition' },
+    { text: 'Semantic Similarity', icon: <SemanticIcon />, path: '/semantic-similarity' },
     { text: 'Performance', icon: <SpeedIcon />, path: '/performance' },
     { text: 'Submit Update', icon: <CreateIcon />, path: '/submit-update' },
     { text: 'History', icon: <HistoryIcon />, path: '/history' },
@@ -175,6 +178,7 @@ function App() {
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/advanced-analytics" element={<AdvancedAnalytics />} />
             <Route path="/keyword-repetition" element={<KeywordRepetition />} />
+            <Route path="/semantic-similarity" element={<SemanticSimilarity />} />
             <Route path="/performance" element={<Performance />} />
             <Route path="/submit-update" element={<SubmitUpdate onSubmitSuccess={handleSubmitSuccess} />} />
             <Route path="/history" element={<History />} />

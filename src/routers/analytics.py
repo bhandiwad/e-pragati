@@ -1,16 +1,20 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import func, cast, JSON
+from sqlalchemy import func, cast, JSON, desc
 from datetime import datetime, timedelta
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import logging
 import json
 import traceback
 from statistics import mean
+import openai
+import numpy as np
+from collections import defaultdict
 
 import src.models as models
 import src.schemas as schemas
 from src.database import get_db
+from src.config import config
 
 # Configure logger with more detailed format
 logging.basicConfig(
@@ -338,4 +342,159 @@ async def get_analytics_overview(
     except Exception as e:
         logger.error(f"Error in analytics overview: {str(e)}")
         logger.error(traceback.format_exc())
-        raise HTTPException(status_code=500, detail=str(e)) 
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/semantic-similarity")
+async def get_semantic_similarity(days: int = 60, threshold: float = 0.85, db: Session = Depends(get_db)):
+    """
+    Analyze semantic similarity between consecutive updates from team members.
+    Helps identify if employees are submitting similar updates without making actual progress.
+    
+    Args:
+        days: Number of days to look back
+        threshold: Similarity threshold for flagging (0.0 to 1.0, higher means more similar)
+    
+    Returns:
+        A list of employees with high similarity scores between updates,
+        indicating potential stalling or lack of progress
+    """
+    try:
+        # Calculate the date range
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=days)
+        
+        # Get all updates within the date range
+        updates = db.query(models.Update).filter(
+            models.Update.timestamp >= start_date
+        ).order_by(
+            models.Update.team_member_id, 
+            models.Update.timestamp
+        ).all()
+        
+        # Group updates by team member
+        member_updates = defaultdict(list)
+        for update in updates:
+            update_text = update.update_text
+            
+            # Include analyzed fields in the text
+            for field_name, field_value in [
+                ('completed_tasks', update.completed_tasks),
+                ('project_progress', update.project_progress),
+                ('goals_status', update.goals_status),
+                ('blockers', update.blockers),
+                ('next_week_plans', update.next_week_plans)
+            ]:
+                if field_value:
+                    try:
+                        field_data = json.loads(field_value)
+                        if isinstance(field_data, list):
+                            update_text += " " + " ".join(field_data)
+                    except (json.JSONDecodeError, TypeError):
+                        logger.warning(f"Could not decode {field_name} data")
+            
+            member_updates[update.team_member_id].append({
+                "id": update.id,
+                "timestamp": update.timestamp,
+                "text": update_text,
+                "productivity_score": update.productivity_score or 0.0
+            })
+        
+        # Initialize OpenAI client
+        client = openai.OpenAI(api_key=config.api.openai_api_key)
+        
+        # Process each member's updates
+        results = []
+        
+        for member_id, updates in member_updates.items():
+            # Need at least 2 updates to compare
+            if len(updates) < 2:
+                continue
+            
+            # Sort updates by timestamp
+            updates.sort(key=lambda x: x["timestamp"])
+            
+            # Get team member details
+            team_member = db.query(models.TeamMember).filter(models.TeamMember.id == member_id).first()
+            if not team_member:
+                continue
+                
+            # Calculate embeddings for all updates
+            update_embeddings = []
+            
+            for update in updates:
+                try:
+                    # Generate embedding using OpenAI
+                    response = client.embeddings.create(
+                        input=update["text"],
+                        model="text-embedding-3-small"
+                    )
+                    embedding = response.data[0].embedding
+                    update_embeddings.append(embedding)
+                except Exception as e:
+                    logger.error(f"Error generating embedding: {str(e)}")
+                    continue
+            
+            # Calculate similarity scores between consecutive updates
+            similarity_scores = []
+            stalled_periods = []
+            
+            for i in range(1, len(update_embeddings)):
+                # Calculate cosine similarity
+                embedding1 = np.array(update_embeddings[i-1])
+                embedding2 = np.array(update_embeddings[i])
+                
+                # Normalize embeddings
+                embedding1 = embedding1 / np.linalg.norm(embedding1)
+                embedding2 = embedding2 / np.linalg.norm(embedding2)
+                
+                # Calculate cosine similarity
+                similarity = np.dot(embedding1, embedding2)
+                
+                # Save similarity score
+                similarity_scores.append({
+                    "score": float(similarity),
+                    "date1": updates[i-1]["timestamp"].strftime("%Y-%m-%d"),
+                    "date2": updates[i]["timestamp"].strftime("%Y-%m-%d"),
+                    "update1_id": updates[i-1]["id"],
+                    "update2_id": updates[i]["id"]
+                })
+                
+                # Check if similarity exceeds threshold
+                if similarity >= threshold:
+                    # Check if productivity score decreased or stayed the same
+                    if updates[i]["productivity_score"] <= updates[i-1]["productivity_score"]:
+                        stalled_periods.append({
+                            "start_date": updates[i-1]["timestamp"].strftime("%Y-%m-%d"),
+                            "end_date": updates[i]["timestamp"].strftime("%Y-%m-%d"),
+                            "similarity": float(similarity),
+                            "update1_id": updates[i-1]["id"],
+                            "update2_id": updates[i]["id"]
+                        })
+            
+            # Only include members with stalled periods
+            if stalled_periods:
+                # Calculate average similarity
+                avg_similarity = sum(score["score"] for score in similarity_scores) / len(similarity_scores) if similarity_scores else 0
+                
+                results.append({
+                    "team_member": team_member.name,
+                    "role": team_member.role,
+                    "department": team_member.department,
+                    "average_similarity": avg_similarity,
+                    "update_count": len(updates),
+                    "similarity_trend": similarity_scores,
+                    "stalled_periods": stalled_periods
+                })
+            
+        # Sort results by average similarity (descending)
+        results.sort(key=lambda x: x["average_similarity"], reverse=True)
+        
+        return {
+            "analysis_period": f"{start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}",
+            "similarity_threshold": threshold,
+            "results": results
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in semantic similarity analysis: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to analyze semantic similarity: {str(e)}") 
